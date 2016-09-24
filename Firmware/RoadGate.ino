@@ -78,7 +78,7 @@ void setup() {
   attachInterrupt(0, HCS_interrupt, CHANGE);
   //---------------------------------------
   
-  //--calibrate-to-up
+ /* //--calibrate-to-up
   if(false){
   Serial.println("Starting to calibrate");
   dOptoSafe.update();
@@ -101,18 +101,16 @@ void setup() {
   
   }
   //--calibrate-to-up
-  
+  */
   
   pinMode(10, OUTPUT);// make sure that the default chip select pin is set to// output, even if you don't use it:
   // Serial.print("Initializing SD card...");
   if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
-   
-  
   }
  else{
   Serial.println("SD card OK");//initialized
-  dataFile = SD.open("ingress.txt",FILE_WRITE);
+  dataFile = SD.open("access.txt",FILE_WRITE);
   //temp //need to read fil i dont know whiy
   if (dataFile) {
     /*
@@ -124,7 +122,7 @@ void setup() {
     */
   }  
   else {
-    Serial.println("SETUP error opening ingress.txt");
+    Serial.println("SETUP error opening access.txt");
   }
  } 
 }
@@ -153,13 +151,15 @@ void readLine(char *buffer)
 }
 
 void SDLearnKey(long unsigned int  LearnKey){
-  Serial.println("Try to learn key "+String(LearnKey));
+  Serial.println("add to SD start");
   dataFile.println(String(LearnKey));
+  dataFile.println();
   dataFile.close();
-  dataFile = SD.open("ingress.txt");
+  dataFile = SD.open("access.txt");
+  Serial.println("done");
 }
 
-int IDisIngress(char* idtoFind)
+int IDisAccess(char* idtoFind)
 {
   char id[20];
   int result;
@@ -179,7 +179,7 @@ int IDisIngress(char* idtoFind)
     }
   }  
   else {// if the file isn't open, pop up an error:
-    Serial.println("error opening ingress.txt");
+    Serial.println("error opening access.txt");
   } 
   //  Serial.print("EOF");
 
@@ -206,26 +206,21 @@ void loop() {
     HCSget=true;
     memcpy(&msg,&hcs301,sizeof(HCS301));
     HCS_Listening = true;// включаем слушанье брелков снова
-    Serial.println(String("KeyFb#")+String(msg.SerialNum));
-    Serial.println(String("BtnOpen#")+String(msg.BtnOpen));
-    Serial.println(String("BtnClose#")+String(msg.BtnClose));
     //--поиск в файле доступа------------
     char idtoFind[8];
     String(msg.SerialNum).toCharArray(idtoFind,8);
-    result = IDisIngress(idtoFind);
+    result = IDisAccess(idtoFind);
     if (result == 1) {     
-      Serial.println(idtoFind);
     }
-    //-----------------------------------
-  }//end if(HCS_Listening == false)
+    Serial.println(String("key=") + String(msg.SerialNum) + String(" btnOpen=")+String(msg.BtnOpen) + String(" btnClose=")+String(msg.BtnClose) + String(" access=") + String(result));
+  }
   //---------------------------------------
-  //--проверяем наличие команды брелка----
   dKeyUp.update ();
   dKeyDown.update ();
   dInterlockUp.update ();
   dInterlockDown.update ();
-  dInterlockDown.update ();
   dLearnKey.update ();
+  dOptoSafe.update();
 
   if(HCSget && dLearnKey.read() && (result==0)){
     SDLearnKey(msg.SerialNum);
@@ -244,8 +239,9 @@ void loop() {
       }
       break;
     }
+    Serial.println(String("KeyUp=1") + String(" access=") + String(result) + String(" inputState=") + String(inputState));
   }
-  if (dKeyDown.read()|| (result==1 && msg.BtnClose)) {
+  if (dKeyDown.read() || (result==1 && msg.BtnClose)) {
     switch (inputState) {
       case (gateReady):
       {
@@ -258,41 +254,31 @@ void loop() {
       }
       break;
     }
+    Serial.println(String("KeyDown=1") + String(" access=") + String(result) + String(" inputState=") + String(inputState));
   }
   
   if (dInterlockUp.read()){
     switch (inputState) {
       case (gateUp):   
-      {
-        inputState = gateReady;
-      } 
-      break;
-      case (gateDown): 
-      {
-        inputState = gateDown;
-      } 
-      break;
-    }
-  }
+     {inputState = gateDelay;
+      Serial.println(String("InterlockUp=1") + String(" access=") + String(result));
+   }}}
   
   if (dInterlockDown.read()) {
     switch (inputState) {
       case (gateDown): 
-      {
-        inputState = gateReady;
-      } 
-      break;
-      case (gateUp):   
-      {
-        inputState = gateUp;
-      } 
-      break;
-    }
-  }
+      {inputState = gateDelay;
+      Serial.println(String("InterlockDown=1") + String(" access=") + String(result));
+    }}}
 
-  dOptoSafe.update();
-  int OptoSafe=dOptoSafe.read();
-  
+  if (dOptoSafe.read()) {
+    }else{
+    switch (inputState) {
+      case (gateDown): 
+      {inputState = gateDelay;
+      Serial.println(String("dOptoSafe=1") + String(" access=") + String(result));
+    }}}
+
   switch (inputState){
     case (gateReady): 
     {
@@ -317,15 +303,14 @@ void loop() {
     {
       motorPowerOn = 1; 
       motorDirection = 1;
-//      if(OptoSafe==1){
-//      motorPowerOn = 1; 
-//      motorDirection = 1;}
-//      else{
-//      motorPowerOn = 0; 
-//      motorDirection = 1;}
     } 
     break;
   }
+
+  if (dInterlockUp.read()){
+  }
+
+
   //motorPowerOn = ! motorPowerOn; motorDirection = ! motorDirection;
   digitalWrite(PinMotorPowerOn, motorPowerOn);//motorPowerOn 
   digitalWrite(PinMotorDirectoin, motorDirection);
@@ -457,6 +442,3 @@ void HCS_interrupt(){
 exit:;
   //digitalWrite(LED_PIN,cur_status);
 }
-
-
-
